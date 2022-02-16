@@ -4,9 +4,11 @@
   "description": "Floema Experiment",
   "main": "index.js",
   "scripts": {
-    "build": "webpack --progress --config webpack.config.build.js",
-    "development": "webpack serve --progress --config webpack.config.development.js",
-    "start": "npm run development"
+    "backend:build": "node app.js",
+    "backend:development": "nodemon app.js",
+    "frontend:build": "webpack --progress --config webpack.config.build.js",
+    "frontend:development": "webpack serve --progress --config webpack.config.development.js",
+    "start": "concurrently --kill-others \"npm run backend:development\" \"npm run frontend:development\""
   },
   "repository": {
     "type": "git",
@@ -46,5 +48,10 @@
     "webpack-cli": "^4.9.1",
     "webpack-dev-server": "^4.7.3",
     "webpack-merge": "^5.8.0"
+  },
+  "dependencies": {
+    "express": "^4.17.2",
+    "nodemon": "^2.0.15",
+    "pug": "^3.0.2"
   }
 }
