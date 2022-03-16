@@ -1,13 +1,23 @@
-require("dotenv").config()
+require('dotenv').config()
 
-const express = require("express")
-const errorHandler = require("errorhandler")
+const logger = require('morgan')
+const express = require('express')
+const errorHandler = require('errorhandler')
+const bodyParser = require('body-parser')
+const methodOverride = require('method-override')
 const app = express()
-const path = require("path")
+const path = require('path')
 const port = 3000
 
-const Prismic = require("@prismicio/client")
-const PrismicDOM = require("prismic-dom")
+app.use(logger('dev'))
+app.use(bodyParser.json())
+app.use(bodyParser.urlencoded({ extended: false }))
+app.use(methodOverride())
+app.use(errorHandler())
+
+const Prismic = require('@prismicio/client')
+const PrismicDOM = require('prismic-dom')
+const { application } = require('express')
 // const PRISMIC_ENDPOINT = process.env.PRISMIC_ENDPOINT
 
 const initApi = req => {
@@ -18,73 +28,106 @@ const initApi = req => {
 }
 
 const handleLinkResolver = doc => {
+    if (doc.type === 'product') {
+        return `/detail/${doc.slug}`
+    }
+
+    if (doc.type === 'collections') {
+        return '/collections'
+    }
+
+    if (doc.type === 'about') {
+        return '/about'
+    }
+
     return '/'
 }
 
-app.use(errorHandler())
-
 app.use((_req, res, next) => {
 
-    res.locals.ctx = {
-        endpoint: process.env.PRISMIC_ENDPOINT,
-        linkResolver: handleLinkResolver
-    }
-    // res.locals.Link = handleLinkResolver
-    res.locals.PrismicDOM = PrismicDOM
+    res.locals.Link = handleLinkResolver
 
+    res.locals.Numbers = index =>{
+        return index == 0 ? 'One' : index == 1 ? 'Two' : index == 2 ? 'Three' : index == 3 ? 'Four' : '';
+    }
+
+    res.locals.PrismicDOM = PrismicDOM
     next()
 })
 
-app.set("views", path.join(__dirname, "views"))
-app.set("view engine", "pug")
+app.set('views', path.join(__dirname, 'views'))
+app.set('view engine', 'pug')
+
+const handleRequest = async api => {
+    const meta = await api.getSingle('metadata')
+    const navigation = await api.getSingle('navigation')
+    const preloader = await api.getSingle('preloader')
+
+    return {
+        meta,
+        navigation,
+        preloader
+    }
+}
 
 // API integration to retrive home page data
-app.get("/", async (req, res) => {
+app.get('/', async (req, res) => {
     const api = await initApi(req)
-    const meta = await api.getSingle('metadata')
+    const defaults = await handleRequest(api)
+    const home = await api.getSingle('home')
+
+    const { results:collections } = await api.query(Prismic.Predicates.at('document.type', 'collection'), {
+        fetchLinks: 'product.showcase_image'
+    })
 
     res.render('pages/home', {
-        meta
+        ...defaults,
+        collections,
+        home
     })
 })
 
 // API integration to retrive about page data
-app.get("/about", async (req, res) => {
+app.get('/about', async (req, res) => {
     const api = await initApi(req)
-    const meta = await api.getSingle('metadata')
+    const defaults = await handleRequest(api)
     const about = await api.getSingle('about')
     
     res.render('pages/about', {
-        meta,
+        ...defaults,
         about
     })
 })
 
 
 // API integration to retrive collections data
-app.get("/collections", async (req, res) => {
+app.get('/collections', async (req, res) => {
     const api = await initApi(req)
-    const meta = await api.getSingle('metadata')
-    const { results:collections } = await api.query(Prismic.Predicates.at('document.type', 'collection'))
+    const defaults = await handleRequest(api)
+    const home = await api.getSingle('home')
 
-    console.log(collections)
+    const { results:collections } = await api.query(Prismic.Predicates.at('document.type', 'collection'), {
+        fetchLinks: 'product.showcase_image'
+    })
 
     res.render('pages/collections', {
-        meta,
+        ...defaults,
+        home,
         collections
     })
 })
 
 // API integration to retrive product details 
-app.get("/detail/:uid", async (req, res) => {
+app.get('/detail/:uid', async (req, res) => {
     const api = await initApi(req)
-    const meta = await api.getSingle('metadata')
+    const defaults = await handleRequest(api)
+
     const product = await api.getByUID('product', req.params.uid, {
         fetchLinks: 'collection.title'
     })
 
     res.render('pages/detail', {
-        meta,
+        ...defaults,
         product
     })
 })
